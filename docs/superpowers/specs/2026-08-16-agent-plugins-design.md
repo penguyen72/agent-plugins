@@ -13,6 +13,7 @@ The first plugin, `commit-and-pr`, standardizes concise Conventional Commit mess
 - Default branch: `main`
 - Repository name: `agent-plugins`
 - Marketplace name: `penguyen72-plugins`
+- License: MIT
 
 ## Repository Architecture
 
