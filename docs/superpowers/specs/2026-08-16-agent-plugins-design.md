@@ -4,7 +4,7 @@
 
 Create a GitHub-hosted marketplace repository for personal plugins that can be installed by Codex and Claude Code. The repository must support cross-platform plugins as the default while allowing a plugin to target only one platform when its capabilities require that.
 
-The first plugin, `commit-and-pr`, standardizes concise Conventional Commit messages and GitHub pull requests. It proposes atomic commits and clear pull request content, then obtains approval before making changes to the repository or GitHub.
+The first plugin, `git-craft`, standardizes concise Conventional Commit messages and GitHub pull requests. It proposes atomic commits and clear pull request content, then obtains approval before making changes to the repository or GitHub.
 
 ## Repository and Remote
 
@@ -27,7 +27,7 @@ agent-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json
 ├── plugins/
-│   └── commit-and-pr/
+│   └── git-craft/
 │       ├── .codex-plugin/
 │       │   └── plugin.json
 │       ├── .claude-plugin/
@@ -52,12 +52,14 @@ The root README will list available plugins, supported platforms, capabilities, 
 
 ## Initial Plugin Components
 
-The `commit-and-pr` plugin contains two focused skills:
+The `git-craft` plugin contains two focused skills:
 
 - `create-commit`: inspect local changes, propose atomic Conventional Commits, and create approved commits.
 - `create-pr`: inspect a branch relative to its base, propose a concise pull request, push when necessary with approval, and create the approved pull request.
 
 The skills share formatting principles but remain independently understandable and invocable. Each `SKILL.md` contains all instructions required for its workflow. Small shared rules may be repeated to avoid runtime dependencies between skill directories.
+
+Installed skills use the plugin namespace: `$git-craft:create-commit` and `$git-craft:create-pr` in Codex, and `/git-craft:create-commit` and `/git-craft:create-pr` in Claude Code.
 
 ## Commit Workflow
 
@@ -197,7 +199,7 @@ Users install the repository as a marketplace, then select individual plugins. T
 The initial release is complete when:
 
 - The repository exposes a valid marketplace to both Codex and Claude Code.
-- `commit-and-pr` installs on both platforms from the same GitHub repository.
+- `git-craft` installs on both platforms from the same GitHub repository.
 - Both skills generate concise, valid Conventional Commit titles.
 - Commit creation, branch push, and pull request creation require clear approval at their mutation boundaries.
 - The plugin handles atomic grouping and common failure states without losing or rewriting user work.
