@@ -83,7 +83,7 @@ Before any mutation, display the chosen base, current head, exact title, and com
 
 ## 8. Push
 
-If the head branch has no upstream, obtain separate approval before:
+Obtain explicit user approval before every push, whether the branch already has an upstream or needs one created. If the head branch has no upstream, obtain separate approval before:
 
 ```bash
 git push -u origin <head>
@@ -93,7 +93,9 @@ Stop if the push fails and retain the actionable command output.
 
 Never force-push.
 
-Never amend, reset, force-push, discard work, or bypass hooks.
+Never amend, reset, rebase, force-push, discard work, or bypass hooks.
+
+Never rewrite history, even if separately requested.
 
 ## 9. Create
 
