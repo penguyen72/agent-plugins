@@ -34,3 +34,25 @@ class CreateCommitSkillContractTests(unittest.TestCase):
         self.assertIn("every path already in the index", body)
         self.assertIn("re-check the cached diff and file set immediately before commit", body)
         self.assertNotIn("unless separately requested", body)
+
+
+class CreatePullRequestSkillContractTests(unittest.TestCase):
+    def test_create_pr_skill_contains_required_pull_request_workflow(self):
+        skill_path = (
+            Path(__file__).resolve().parents[1]
+            / "plugins/git-craft/skills/create-pr/SKILL.md"
+        )
+
+        frontmatter, body = load_skill(skill_path)
+
+        self.assertEqual(frontmatter["name"], "create-pr")
+        self.assertIn("pull request", frontmatter["description"].lower())
+        self.assertIn("gh auth status", body)
+        self.assertIn("## Summary", body)
+        self.assertIn("## Testing", body)
+        self.assertIn("## Related issues", body)
+        self.assertIn("gh pr create", body)
+        self.assertIn("approval", body.lower())
+        self.assertIn("72", body)
+        self.assertIn("Never force-push", body)
+        self.assertIn("Do not invent tests or results", body)
