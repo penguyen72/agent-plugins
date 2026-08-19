@@ -1,0 +1,12 @@
+{
+  "name": "git-craft",
+  "version": "0.1.0",
+  "description": "Create concise Conventional Commits and GitHub pull requests",
+  "author": {
+    "name": "Pey Nguyen"
+  },
+  "repository": "https://github.com/penguyen72/agent-plugins",
+  "license": "MIT",
+  "keywords": ["git", "github", "commits", "pull-requests"],
+  "skills": "./skills/"
+}

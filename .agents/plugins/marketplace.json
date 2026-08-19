@@ -1,0 +1,20 @@
+{
+  "name": "penguyen72-plugins",
+  "interface": {
+    "displayName": "Pey Nguyen Plugins"
+  },
+  "plugins": [
+    {
+      "name": "git-craft",
+      "source": {
+        "source": "local",
+        "path": "./plugins/git-craft"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

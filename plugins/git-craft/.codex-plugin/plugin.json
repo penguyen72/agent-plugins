@@ -1,0 +1,25 @@
+{
+  "name": "git-craft",
+  "version": "0.1.0",
+  "description": "Create concise Conventional Commits and GitHub pull requests",
+  "author": {
+    "name": "Pey Nguyen",
+    "url": "https://github.com/penguyen72"
+  },
+  "repository": "https://github.com/penguyen72/agent-plugins",
+  "license": "MIT",
+  "keywords": ["git", "github", "commits", "pull-requests"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Git Craft",
+    "shortDescription": "Create concise commits and pull requests.",
+    "longDescription": "Propose atomic Conventional Commits and concise GitHub pull requests with approval before changes.",
+    "developerName": "Pey Nguyen",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Create concise commits for these changes.",
+      "Create a pull request for this branch."
+    ]
+  }
+}

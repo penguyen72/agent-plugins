@@ -1,0 +1,14 @@
+{
+  "name": "penguyen72-plugins",
+  "owner": {
+    "name": "Pey Nguyen"
+  },
+  "plugins": [
+    {
+      "name": "git-craft",
+      "source": "./plugins/git-craft",
+      "description": "Create concise Conventional Commits and GitHub pull requests",
+      "category": "Development"
+    }
+  ]
+}
