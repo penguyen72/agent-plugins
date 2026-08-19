@@ -387,9 +387,9 @@ The body must define these ordered sections and concrete instructions:
 3. **Group:** keep one coherent unit together; split unrelated behavior, tests, documentation, or infrastructure into atomic proposals; explain any staged-set conflict.
 4. **Format:** enforce the approved type list, optional useful scope, lowercase imperative subject, no period, 50-character preference, 72-character maximum, optional explanatory body, and breaking-change syntax.
 5. **Propose:** show each exact message and file list before mutation.
-6. **Approve and execute:** obtain approval for each proposed commit, stage only explicit paths with `git add -- <paths>`, run `git diff --cached --check`, then run the normal `git commit` command so configured hooks execute.
+6. **Approve and execute:** obtain approval for each proposed commit, stage only explicit paths with `git add -- <paths>`, run `git diff --cached --check`, then re-check the cached diff and file set immediately before commit. Every path already in the index must appear in the exact approved atomic proposal; otherwise stop and ask for a new proposal and approval. Only then run the normal `git commit` command so configured hooks execute.
 7. **Verify:** read the resulting hash with `git rev-parse --short HEAD` and show remaining `git status --short`; never claim success from an unobserved result.
-8. **Failures:** retain hook and Git error text, stop after failure, and never amend, reset, force, or skip hooks unless separately requested.
+8. **Failures:** retain hook and Git error text, stop after failure, and never amend, reset, force, discard work, or skip hooks; these actions are out of scope for this plugin.
 
 Include all four approved examples and `feat(api)!: remove legacy authentication` with a `BREAKING CHANGE:` footer.
 
