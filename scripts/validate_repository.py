@@ -29,6 +29,27 @@ def display_path(root: Path, path: Path) -> str:
         return str(path)
 
 
+def is_within(path: Path, parent: Path) -> bool:
+    """Return whether a resolved path is contained by a resolved parent."""
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def plugin_path(root: Path, source: Path, relative: Path, errors: list[str]) -> Path | None:
+    """Resolve a plugin child only when it remains within that plugin."""
+    candidate = source / relative
+    resolved = candidate.resolve()
+    if not is_within(resolved, source):
+        errors.append(
+            f"Plugin path escapes its directory: {display_path(root, candidate)}"
+        )
+        return None
+    return resolved
+
+
 def load_object(path: Path, errors: list[str]) -> dict[str, object] | None:
     """Load a JSON object, recording a human-readable error on failure."""
     if not path.is_file():
@@ -97,7 +118,11 @@ def resolve_plugin_source(root: Path, source: object, platform: str, errors: lis
         errors.append(f"{platform} plugin source '{source_path}' must match ./plugins/<name>")
         return None
 
-    plugins_root = (root / "plugins").resolve()
+    plugin_directory = root / "plugins"
+    plugins_root = plugin_directory.resolve()
+    if plugins_root != plugin_directory:
+        errors.append(f"{platform} plugin source '{source_path}' must stay beneath plugins/")
+        return None
     resolved = (root / candidate).resolve()
     if resolved.parent != plugins_root:
         errors.append(f"{platform} plugin source '{source_path}' must stay beneath plugins/")
@@ -138,6 +163,7 @@ def validate_repository(root: Path) -> list[str]:
     plugin_manifests: dict[Path, dict[str, dict[str, object]]] = {}
     plugin_sources: set[Path] = set()
     catalog_names: dict[str, set[str]] = {}
+    catalog_sources: dict[str, set[Path]] = {}
 
     for platform, (catalog_relative, manifest_directory) in PLATFORMS.items():
         catalog_path = root / catalog_relative
@@ -175,22 +201,46 @@ def validate_repository(root: Path) -> list[str]:
                 errors.append(f"{platform} plugin directory is missing: plugins/{source.name}")
                 continue
             plugin_sources.add(source)
-            manifest_path = source / manifest_directory / "plugin.json"
-            if not manifest_path.is_file():
-                errors.append(f"{platform} manifest is missing for plugin '{source.name}'")
+            catalog_sources.setdefault(platform, set()).add(source)
         catalog_names[platform] = names
 
     plugins_root = root / "plugins"
     if plugins_root.is_dir():
-        plugin_sources.update(path.resolve() for path in plugins_root.iterdir() if path.is_dir())
+        for path in sorted(plugins_root.iterdir()):
+            if not path.is_dir():
+                continue
+            source = path.resolve()
+            if source.parent != plugins_root:
+                errors.append(f"Plugin directory escapes plugins/: {display_path(root, path)}")
+                continue
+            plugin_sources.add(source)
+
+    for platform, sources in catalog_sources.items():
+        manifest_directory = PLATFORMS[platform][1]
+        for source in sorted(sources):
+            manifest_path = plugin_path(
+                root, source, Path(manifest_directory) / "plugin.json", errors
+            )
+            if manifest_path is not None and not manifest_path.is_file():
+                errors.append(f"{platform} manifest is missing for plugin '{source.name}'")
 
     for source in sorted(plugin_sources):
+        manifest_paths: dict[str, Path] = {}
         for platform, (_, manifest_directory) in PLATFORMS.items():
-            manifest_path = source / manifest_directory / "plugin.json"
+            manifest_path = plugin_path(
+                root, source, Path(manifest_directory) / "plugin.json", errors
+            )
+            if manifest_path is None:
+                continue
+            manifest_paths[platform] = manifest_path
             if manifest_path.is_file():
                 manifest = validate_manifest(manifest_path, platform, source.name, errors)
                 if manifest is not None:
                     plugin_manifests.setdefault(source, {})[platform] = manifest
+        if not any(path.is_file() for path in manifest_paths.values()):
+            errors.append(
+                f"Plugin directory has no platform manifest: {display_path(root, source)}"
+            )
 
     for source, manifests in plugin_manifests.items():
         codex = manifests.get("Codex")
@@ -199,20 +249,33 @@ def validate_repository(root: Path) -> list[str]:
             errors.append(f"Plugin '{source.name}' has mismatched Codex and Claude versions")
 
     for source in sorted(plugin_sources):
-        codex_manifest = source / ".codex-plugin/plugin.json"
-        claude_manifest = source / ".claude-plugin/plugin.json"
-        if codex_manifest.is_file() and claude_manifest.is_file():
-            for platform in PLATFORMS:
-                if source.name not in catalog_names.get(platform, set()):
-                    errors.append(
-                        f"Cross-platform plugin '{source.name}' is missing from {platform} marketplace catalog"
-                    )
+        for platform, (_, manifest_directory) in PLATFORMS.items():
+            manifest_path = plugin_path(
+                root, source, Path(manifest_directory) / "plugin.json", errors
+            )
+            if manifest_path is not None and manifest_path.is_file() and source.name not in catalog_names.get(platform, set()):
+                errors.append(
+                    f"Plugin '{source.name}' has a {platform} manifest but is missing from the {platform} marketplace catalog"
+                )
 
     for source in sorted(plugin_sources):
-        skills = source / "skills"
-        if skills.is_dir():
+        skills = plugin_path(root, source, Path("skills"), errors)
+        if skills is not None and skills.is_dir():
             for skill_directory in sorted(path for path in skills.iterdir() if path.is_dir()):
-                skill_path = skill_directory / "SKILL.md"
+                resolved_skill_directory = skill_directory.resolve()
+                if not is_within(resolved_skill_directory, source):
+                    errors.append(
+                        f"Plugin path escapes its directory: {display_path(root, skill_directory)}"
+                    )
+                    continue
+                skill_path = plugin_path(
+                    root,
+                    source,
+                    resolved_skill_directory.relative_to(source) / "SKILL.md",
+                    errors,
+                )
+                if skill_path is None:
+                    continue
                 skill_errors: list[str] = []
                 parse_skill_frontmatter(skill_path, skill_errors)
                 for error in skill_errors:
