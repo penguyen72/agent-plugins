@@ -29,8 +29,15 @@ class CreateCommitSkillContractTests(unittest.TestCase):
         self.assertIn("approval", body.lower())
         self.assertIn("BREAKING CHANGE:", body)
         self.assertIn("72", body)
+        self.assertIn("Choose the narrowest accurate type.", body)
+        self.assertIn("Do not use emojis or vague filler", body)
+        self.assertIn("commit footer or pull request body rather than the title", body)
         self.assertNotIn("git add .", body)
-        self.assertIn("Never amend, reset, force, discard work, or bypass hooks", body)
+        self.assertIn(
+            "Never amend, reset, rebase, force or force-push, discard work, rewrite history, "
+            "or bypass hooks—even if separately requested.",
+            body,
+        )
         self.assertIn("every path already in the index", body)
         self.assertIn("re-check the cached diff and file set immediately before commit", body)
         self.assertNotIn("unless separately requested", body)
@@ -54,6 +61,9 @@ class CreatePullRequestSkillContractTests(unittest.TestCase):
         self.assertIn("gh pr create", body)
         self.assertIn("approval", body.lower())
         self.assertIn("72", body)
+        self.assertIn("Choose the narrowest accurate type.", body)
+        self.assertIn("Do not use emojis or vague filler", body)
+        self.assertIn("commit footer or pull request body rather than the title", body)
         self.assertIn("Never force-push", body)
         self.assertIn("Do not invent tests or results", body)
         self.assertIn("Obtain explicit user approval before every push", body)

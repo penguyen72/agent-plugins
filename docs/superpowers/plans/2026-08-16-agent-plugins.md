@@ -21,9 +21,9 @@
 - Platform-specific plugins contain only the relevant manifest and catalog entry.
 - Plugins must not read resources outside their own plugin directory.
 - Allowed commit types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `revert`.
-- Commit and pull request titles use lowercase imperative subjects, prefer 50 characters, never exceed 72 characters, and have no trailing punctuation.
+- Commit and pull request titles use the narrowest accurate type and lowercase imperative subjects, prefer 50 characters, never exceed 72 characters, and have no trailing punctuation; they contain no emojis, vague filler, or issue references, which belong in a commit footer or pull request body.
 - Commit creation, branch push, feature-branch creation, and pull request creation require approval before mutation.
-- Never bypass hooks, discard or rewrite user work, fabricate tests, or continue to pull request creation after a failed push.
+- Never amend, reset, rebase, force or force-push, discard work, rewrite history, or bypass hooks, even if separately requested; never fabricate tests or continue to pull request creation after a failed push.
 - Automated acceptance tests must not push branches or create real pull requests.
 
 ---

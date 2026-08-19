@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -64,16 +65,45 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_readme_uses_portable_codex_validator_path(self):
         root = Path(__file__).resolve().parents[1]
         readme = (root / "README.md").read_text(encoding="utf-8")
-        self.assertNotIn("/Users/peynguyen/.codex/", readme)
-        self.assertIn(
-            "${CODEX_HOME:-$HOME/.codex}/skills/.system/plugin-creator/scripts/validate_plugin.py",
-            readme,
+        command = re.search(
+            r'python3\s+"(?P<path>[^"]+)"\s+plugins/git-craft', readme
+        )
+        self.assertNotIn("/Users/", readme)
+        self.assertIsNotNone(command)
+        validator_path = command.group("path") if command else ""
+        self.assertIn("${CODEX_HOME:-$HOME/.codex}", validator_path)
+        self.assertTrue(
+            validator_path.endswith(
+                "/skills/.system/plugin-creator/scripts/validate_plugin.py"
+            )
         )
 
     def test_valid_cross_platform_repository_has_no_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             build_repo(root)
+            self.assertEqual(validate_repository(root), [])
+
+    def test_valid_codex_only_repository_has_no_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            (root / "plugins/git-craft/.claude-plugin/plugin.json").unlink()
+            catalog = root / ".claude-plugin/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(validate_repository(root), [])
+
+    def test_valid_claude_only_repository_has_no_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            (root / "plugins/git-craft/.codex-plugin/plugin.json").unlink()
+            catalog = root / ".agents/plugins/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
             self.assertEqual(validate_repository(root), [])
 
     def test_rejects_manifest_name_mismatch(self):
@@ -157,9 +187,90 @@ class ValidateRepositoryTests(unittest.TestCase):
             payload["plugins"] = []
             catalog.write_text(json.dumps(payload), encoding="utf-8")
             self.assertIn(
-                "Cross-platform plugin 'git-craft' is missing from Claude marketplace catalog",
+                "Plugin 'git-craft' has a Claude manifest but is missing from the Claude marketplace catalog",
                 validate_repository(root),
             )
+
+    def test_rejects_codex_manifest_missing_from_codex_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            (root / "plugins/git-craft/.claude-plugin/plugin.json").unlink()
+            catalog = root / ".claude-plugin/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            catalog = root / ".agents/plugins/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIn(
+                "Plugin 'git-craft' has a Codex manifest but is missing from the Codex marketplace catalog",
+                validate_repository(root),
+            )
+
+    def test_rejects_claude_manifest_missing_from_claude_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            (root / "plugins/git-craft/.codex-plugin/plugin.json").unlink()
+            catalog = root / ".agents/plugins/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            catalog = root / ".claude-plugin/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIn(
+                "Plugin 'git-craft' has a Claude manifest but is missing from the Claude marketplace catalog",
+                validate_repository(root),
+            )
+
+    def test_rejects_manifestless_plugin_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            (root / "plugins/no-manifest").mkdir()
+            self.assertIn(
+                "Plugin directory has no platform manifest: plugins/no-manifest",
+                validate_repository(root),
+            )
+
+    def test_rejects_physical_plugin_directory_symlink_that_escapes_plugins(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            external_plugin = root / "external-plugin"
+            external_plugin.mkdir()
+            (root / "plugins/escaped").symlink_to(
+                external_plugin, target_is_directory=True
+            )
+
+            errors = validate_repository(root)
+
+            self.assertIn("Plugin directory escapes plugins/: plugins/escaped", errors)
+            self.assertNotIn(str(external_plugin), "\n".join(errors))
+
+    def test_rejects_manifest_symlink_that_escapes_plugin_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            manifest = root / "plugins/git-craft/.codex-plugin/plugin.json"
+            manifest.unlink()
+            manifest.parent.rmdir()
+            external_manifest_directory = root / "external-manifest"
+            external_manifest_directory.mkdir()
+            manifest.parent.symlink_to(external_manifest_directory, target_is_directory=True)
+
+            errors = validate_repository(root)
+
+            self.assertIn(
+                "Plugin path escapes its directory: "
+                "plugins/git-craft/.codex-plugin/plugin.json",
+                errors,
+            )
+            self.assertNotIn(str(external_manifest_directory), "\n".join(errors))
 
     def test_rejects_version_mismatch_for_plugin_missing_from_catalog(self):
         with tempfile.TemporaryDirectory() as directory:

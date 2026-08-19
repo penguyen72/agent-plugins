@@ -33,7 +33,7 @@ Keep one coherent unit together. Split unrelated behavior, tests, documentation,
 
 Use only these approved types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, and `revert`.
 
-Use `<type>[(optional-scope)][!]: <imperative subject>`. Add a useful scope only when it clarifies the affected component. Use a lowercase imperative subject with no period; prefer 50 characters and enforce a 72-character maximum. Add an explanatory body only when necessary. For a genuine breaking change, use `!` and a `BREAKING CHANGE:` footer.
+Use `<type>[(optional-scope)][!]: <imperative subject>`. Choose the narrowest accurate type. Add a useful scope only when it clarifies the affected component. Use a lowercase imperative subject with no period; prefer 50 characters and enforce a 72-character maximum. Do not use emojis or vague filler such as "updates," "changes," or "various fixes." Keep issue references in a commit footer or pull request body rather than the title. Add an explanatory body only when necessary. For a genuine breaking change, use `!` and a `BREAKING CHANGE:` footer.
 
 Approved examples:
 
@@ -66,4 +66,4 @@ After the commit command succeeds, read its observed hash with `git rev-parse --
 
 ## 8. Failures
 
-Retain actionable hook and Git error text, then stop after a failure. Never amend, reset, force, discard work, or bypass hooks. These actions are out of scope for this plugin.
+Retain actionable hook and Git error text, then stop after a failure. Never amend, reset, rebase, force or force-push, discard work, rewrite history, or bypass hooks—even if separately requested. These actions are permanently out of scope for this plugin.

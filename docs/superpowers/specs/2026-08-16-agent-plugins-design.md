@@ -75,7 +75,7 @@ The `create-commit` skill follows this sequence:
 8. Stop and request a new proposal and approval if any indexed path is absent from that proposal; otherwise run the normal commit command without bypassing hooks.
 9. Report the resulting commit hash or the actionable failure.
 
-The skill must preserve existing staged work. When the staged set conflicts with the proposed atomic grouping, it explains the conflict and asks the user how to proceed. It must not amend commits, reset changes, force an operation, discard work, or skip hooks; these actions are out of scope for the plugin.
+The skill must preserve existing staged work. When the staged set conflicts with the proposed atomic grouping, it explains the conflict and asks the user how to proceed. It must never amend commits, reset changes, rebase, force or force-push, discard work, rewrite history, or bypass hooks, even if separately requested; these actions are permanently out of scope for the plugin.
 
 ## Pull Request Workflow
 

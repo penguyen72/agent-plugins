@@ -51,7 +51,7 @@ Use the observed commits and diff to describe the entire pull request.
 
 Use the same Conventional Commit types as `create-commit`: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, and `revert`.
 
-Format the title as `<type>[(optional-scope)][!]: <imperative subject>`. Use a lowercase imperative subject without a period; prefer 50 characters and enforce a 72-character maximum. Describe the complete pull request rather than copying an arbitrary commit title.
+Format the title as `<type>[(optional-scope)][!]: <imperative subject>`. Choose the narrowest accurate type. Use a lowercase imperative subject without a period; prefer 50 characters and enforce a 72-character maximum. Do not use emojis or vague filler such as "updates," "changes," or "various fixes." Keep issue references in a commit footer or pull request body rather than the title. Describe the complete pull request rather than copying an arbitrary commit title.
 
 ## 6. Draft body
 
