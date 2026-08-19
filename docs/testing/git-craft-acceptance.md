@@ -9,7 +9,7 @@ Tested plugin version: `0.1.0`
 | --- | ---: | --- |
 | `python3 -m unittest discover -s tests -v` | 0 | 18 tests passed. |
 | `python3 scripts/validate_repository.py .` | 0 | `Repository validation passed.` |
-| `python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft` | 1 | Blocked by the local Codex validator dependency: `ModuleNotFoundError: No module named 'yaml'`. No dependency was installed or changed for this check. |
+| `uv run --with pyyaml python /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft` | 0 | `Plugin validation passed` in an isolated uv-provided PyYAML environment. |
 | `claude plugin validate ./plugins/git-craft --strict` | 0 | Claude Code reported `Validation passed`. |
 | `git diff --check` | 0 | No output. |
 
@@ -60,4 +60,4 @@ No remote was configured in the acceptance fixture. No remote push, real pull re
 ## Limitations
 
 - Claude Code `2.1.229` is installed and validates the plugin, but no Claude authentication is available for a fresh local-plugin session. Interactive acceptance checks require a logged-in session and remain blocked.
-- Codex CLI `0.147.0` is installed, but the bundled `validate_plugin.py` cannot run because the current `python3` environment lacks `yaml` (PyYAML). Installing dependencies was outside this validation task.
+- The bundled Codex validator passed with PyYAML supplied by the isolated `uv run --with pyyaml` environment; no installed environment was changed.
