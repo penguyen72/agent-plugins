@@ -61,6 +61,15 @@ class ValidateRepositoryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.assertEqual(validate_repository(root), [])
 
+    def test_readme_uses_portable_codex_validator_path(self):
+        root = Path(__file__).resolve().parents[1]
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("/Users/peynguyen/.codex/", readme)
+        self.assertIn(
+            "${CODEX_HOME:-$HOME/.codex}/skills/.system/plugin-creator/scripts/validate_plugin.py",
+            readme,
+        )
+
     def test_valid_cross_platform_repository_has_no_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
