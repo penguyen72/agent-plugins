@@ -57,6 +57,10 @@ def build_repo(root: Path) -> None:
 
 
 class ValidateRepositoryTests(unittest.TestCase):
+    def test_checked_in_repository_is_valid(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertEqual(validate_repository(root), [])
+
     def test_valid_cross_platform_repository_has_no_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
