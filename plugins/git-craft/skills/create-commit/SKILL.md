@@ -1,0 +1,69 @@
+---
+name: create-commit
+description: Create concise Conventional Commits from repository changes. Use when the user asks to inspect, group, stage, or commit changes with clear atomic messages and approval before each commit.
+---
+
+# Create atomic Conventional Commits
+
+Create one or more reviewed atomic commits only after explicit user approval. If a prerequisite fails, stop and provide the concise actionable reason.
+
+## 1. Inspect
+
+Run these commands before proposing any mutation:
+
+```bash
+git rev-parse --show-toplevel
+git status --short
+git diff
+git diff --cached
+git log -5 --oneline
+```
+
+Stop if the directory is outside Git or if no staged or unstaged changes exist.
+
+## 2. Protect existing work
+
+Distinguish staged files from unstaged files. Never unstage, rewrite, or discard existing work. Flag `.env` files, credentials, private keys, large generated files, and unexpected binaries before staging. If the existing staged set conflicts with an atomic proposal, explain the conflict and ask how to proceed.
+
+## 3. Group
+
+Keep one coherent unit together. Split unrelated behavior, tests, documentation, or infrastructure into separate atomic proposals. Preserve the existing staged set unless the user explicitly directs a different safe action.
+
+## 4. Format
+
+Use only these approved types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, and `revert`.
+
+Use `<type>[(optional-scope)][!]: <imperative subject>`. Add a useful scope only when it clarifies the affected component. Use a lowercase imperative subject with no period; prefer 50 characters and enforce a 72-character maximum. Add an explanatory body only when necessary. For a genuine breaking change, use `!` and a `BREAKING CHANGE:` footer.
+
+Approved examples:
+
+```text
+feat(auth): add session timeout handling
+fix(api): preserve pagination cursor
+docs: clarify local installation
+refactor(parser): separate validation logic
+```
+
+A breaking-change example:
+
+```text
+feat(api)!: remove legacy authentication
+
+BREAKING CHANGE: clients must use token authentication.
+```
+
+## 5. Propose
+
+Before mutation, show every proposed commit's exact message and explicit file list. Explain why each file belongs in its proposal and wait for approval.
+
+## 6. Approve and execute
+
+Obtain approval for each proposed commit. For each approved proposal, stage only its explicit paths with `git add -- <paths>`, run `git diff --cached --check`, then run the normal `git commit` command so configured hooks execute. Do not use a hook-bypass option.
+
+## 7. Verify
+
+After the commit command succeeds, read its observed hash with `git rev-parse --short HEAD` and show the remaining `git status --short`. Never claim success from an unobserved result.
+
+## 8. Failures
+
+Retain actionable hook and Git error text, then stop after a failure. Never amend, reset, force, discard work, or bypass hooks unless separately requested.
