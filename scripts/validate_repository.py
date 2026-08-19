@@ -9,7 +9,12 @@ from typing import Sequence
 
 
 MARKETPLACE_NAME = "penguyen72-plugins"
-SEMVER = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
+SEMVER = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 PLATFORMS = {
     "Codex": (Path(".agents/plugins/marketplace.json"), ".codex-plugin"),
     "Claude": (Path(".claude-plugin/marketplace.json"), ".claude-plugin"),
@@ -132,6 +137,7 @@ def validate_repository(root: Path) -> list[str]:
     errors: list[str] = []
     plugin_manifests: dict[Path, dict[str, dict[str, object]]] = {}
     plugin_sources: set[Path] = set()
+    catalog_names: dict[str, set[str]] = {}
 
     for platform, (catalog_relative, manifest_directory) in PLATFORMS.items():
         catalog_path = root / catalog_relative
@@ -172,16 +178,35 @@ def validate_repository(root: Path) -> list[str]:
             manifest_path = source / manifest_directory / "plugin.json"
             if not manifest_path.is_file():
                 errors.append(f"{platform} manifest is missing for plugin '{source.name}'")
-                continue
-            manifest = validate_manifest(manifest_path, platform, source.name, errors)
-            if manifest is not None:
-                plugin_manifests.setdefault(source, {})[platform] = manifest
+        catalog_names[platform] = names
+
+    plugins_root = root / "plugins"
+    if plugins_root.is_dir():
+        plugin_sources.update(path.resolve() for path in plugins_root.iterdir() if path.is_dir())
+
+    for source in sorted(plugin_sources):
+        for platform, (_, manifest_directory) in PLATFORMS.items():
+            manifest_path = source / manifest_directory / "plugin.json"
+            if manifest_path.is_file():
+                manifest = validate_manifest(manifest_path, platform, source.name, errors)
+                if manifest is not None:
+                    plugin_manifests.setdefault(source, {})[platform] = manifest
 
     for source, manifests in plugin_manifests.items():
         codex = manifests.get("Codex")
         claude = manifests.get("Claude")
         if codex is not None and claude is not None and codex.get("version") != claude.get("version"):
             errors.append(f"Plugin '{source.name}' has mismatched Codex and Claude versions")
+
+    for source in sorted(plugin_sources):
+        codex_manifest = source / ".codex-plugin/plugin.json"
+        claude_manifest = source / ".claude-plugin/plugin.json"
+        if codex_manifest.is_file() and claude_manifest.is_file():
+            for platform in PLATFORMS:
+                if source.name not in catalog_names.get(platform, set()):
+                    errors.append(
+                        f"Cross-platform plugin '{source.name}' is missing from {platform} marketplace catalog"
+                    )
 
     for source in sorted(plugin_sources):
         skills = source / "skills"
