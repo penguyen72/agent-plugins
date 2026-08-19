@@ -4,7 +4,7 @@
 
 **Goal:** Publish a dual-platform `agent-plugins` marketplace whose first plugin creates concise, approved Conventional Commits and GitHub pull requests in Codex and Claude Code.
 
-**Architecture:** Keep each plugin self-contained under `plugins/`. The `commit-and-pr` plugin shares two portable `SKILL.md` workflows while exposing separate Codex and Claude manifests; root catalogs adapt that plugin to each platform's marketplace schema. A dependency-free Python validator checks the cross-platform invariants, while static contract tests and isolated Git repositories cover safety-critical workflow behavior.
+**Architecture:** Keep each plugin self-contained under `plugins/`. The `git-craft` plugin shares two portable `SKILL.md` workflows while exposing separate Codex and Claude manifests; root catalogs adapt that plugin to each platform's marketplace schema. A dependency-free Python validator checks the cross-platform invariants, while static contract tests and isolated Git repositories cover safety-critical workflow behavior.
 
 **Tech Stack:** Markdown Agent Skills, JSON plugin manifests, Python 3 standard library, `unittest`, Git, GitHub CLI, Codex plugin CLI, Claude Code plugin CLI.
 
@@ -15,7 +15,7 @@
 - Default branch: `main`.
 - Marketplace identifier: `penguyen72-plugins`.
 - License: MIT.
-- Initial plugin name and directory: `commit-and-pr`.
+- Initial plugin name and directory: `git-craft`.
 - Initial plugin version: `0.1.0` in both platform manifests.
 - Cross-platform plugins contain both manifests and appear in both catalogs.
 - Platform-specific plugins contain only the relevant manifest and catalog entry.
@@ -35,10 +35,10 @@
 - `tests/test_skill_contracts.py`: assert the installed skill text contains the agreed workflow gates, formats, and safety rules.
 - `.agents/plugins/marketplace.json`: Codex marketplace catalog.
 - `.claude-plugin/marketplace.json`: Claude Code marketplace catalog.
-- `plugins/commit-and-pr/.codex-plugin/plugin.json`: Codex plugin metadata.
-- `plugins/commit-and-pr/.claude-plugin/plugin.json`: Claude Code plugin metadata.
-- `plugins/commit-and-pr/skills/create-commit/SKILL.md`: atomic commit workflow.
-- `plugins/commit-and-pr/skills/create-pr/SKILL.md`: pull request workflow.
+- `plugins/git-craft/.codex-plugin/plugin.json`: Codex plugin metadata.
+- `plugins/git-craft/.claude-plugin/plugin.json`: Claude Code plugin metadata.
+- `plugins/git-craft/skills/create-commit/SKILL.md`: atomic commit workflow.
+- `plugins/git-craft/skills/create-pr/SKILL.md`: pull request workflow.
 - `README.md`: plugin inventory, installation, update, usage, and development commands.
 - `LICENSE`: MIT license text.
 
@@ -56,7 +56,7 @@
 
 - [ ] **Step 1: Write failing tests for a valid dual-platform fixture**
 
-Create `tests/test_validate_repository.py` with a `build_repo(root: Path)` helper that writes a minimal `commit-and-pr` plugin, both catalogs, both manifests at version `0.1.0`, and two skills with `name` and `description` frontmatter. Add:
+Create `tests/test_validate_repository.py` with a `build_repo(root: Path)` helper that writes a minimal `git-craft` plugin, both catalogs, both manifests at version `0.1.0`, and two skills with `name` and `description` frontmatter. Add:
 
 ```python
 class ValidateRepositoryTests(unittest.TestCase):
@@ -70,12 +70,12 @@ class ValidateRepositoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             build_repo(root)
-            manifest = root / "plugins/commit-and-pr/.codex-plugin/plugin.json"
+            manifest = root / "plugins/git-craft/.codex-plugin/plugin.json"
             payload = json.loads(manifest.read_text())
             payload["name"] = "wrong-name"
             manifest.write_text(json.dumps(payload))
             self.assertIn(
-                "Codex manifest name 'wrong-name' does not match directory 'commit-and-pr'",
+                "Codex manifest name 'wrong-name' does not match directory 'git-craft'",
                 validate_repository(root),
             )
 ```
@@ -158,15 +158,15 @@ git commit -m "test: add plugin repository validator"
 **Files:**
 - Create: `.agents/plugins/marketplace.json`
 - Create: `.claude-plugin/marketplace.json`
-- Create: `plugins/commit-and-pr/.codex-plugin/plugin.json`
-- Create: `plugins/commit-and-pr/.claude-plugin/plugin.json`
+- Create: `plugins/git-craft/.codex-plugin/plugin.json`
+- Create: `plugins/git-craft/.claude-plugin/plugin.json`
 - Create: `README.md`
 - Create: `LICENSE`
 - Modify: `tests/test_validate_repository.py`
 
 **Interfaces:**
 - Consumes: `validate_repository(root)` from Task 1.
-- Produces: marketplace `penguyen72-plugins` and installable plugin selector `commit-and-pr@penguyen72-plugins` for both platforms.
+- Produces: marketplace `penguyen72-plugins` and installable plugin selector `git-craft@penguyen72-plugins` for both platforms.
 
 - [ ] **Step 1: Add a failing integration test against the real repository**
 
@@ -200,10 +200,10 @@ Write `.agents/plugins/marketplace.json`:
   },
   "plugins": [
     {
-      "name": "commit-and-pr",
+      "name": "git-craft",
       "source": {
         "source": "local",
-        "path": "./plugins/commit-and-pr"
+        "path": "./plugins/git-craft"
       },
       "policy": {
         "installation": "AVAILABLE",
@@ -227,8 +227,8 @@ Write `.claude-plugin/marketplace.json`:
   },
   "plugins": [
     {
-      "name": "commit-and-pr",
-      "source": "./plugins/commit-and-pr",
+      "name": "git-craft",
+      "source": "./plugins/git-craft",
       "description": "Create concise Conventional Commits and GitHub pull requests",
       "category": "Development"
     }
@@ -238,11 +238,11 @@ Write `.claude-plugin/marketplace.json`:
 
 - [ ] **Step 5: Create both plugin manifests**
 
-Write `plugins/commit-and-pr/.codex-plugin/plugin.json` as:
+Write `plugins/git-craft/.codex-plugin/plugin.json` as:
 
 ```json
 {
-  "name": "commit-and-pr",
+  "name": "git-craft",
   "version": "0.1.0",
   "description": "Create concise Conventional Commits and GitHub pull requests",
   "author": {
@@ -254,7 +254,7 @@ Write `plugins/commit-and-pr/.codex-plugin/plugin.json` as:
   "keywords": ["git", "github", "commits", "pull-requests"],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Commit and PR",
+    "displayName": "Git Craft",
     "shortDescription": "Create concise commits and pull requests.",
     "longDescription": "Propose atomic Conventional Commits and concise GitHub pull requests with approval before changes.",
     "developerName": "Pey Nguyen",
@@ -268,11 +268,11 @@ Write `plugins/commit-and-pr/.codex-plugin/plugin.json` as:
 }
 ```
 
-Write `plugins/commit-and-pr/.claude-plugin/plugin.json` as:
+Write `plugins/git-craft/.claude-plugin/plugin.json` as:
 
 ```json
 {
-  "name": "commit-and-pr",
+  "name": "git-craft",
   "version": "0.1.0",
   "description": "Create concise Conventional Commits and GitHub pull requests",
   "author": {
@@ -290,23 +290,23 @@ Write `plugins/commit-and-pr/.claude-plugin/plugin.json` as:
 Write `README.md` with:
 
 - A one-paragraph purpose statement.
-- A plugin table containing `commit-and-pr`, both supported platforms, and the two skill names.
+- A plugin table containing `git-craft`, both supported platforms, and the two skill names.
 - Codex install commands:
 
 ```bash
 codex plugin marketplace add penguyen72/agent-plugins --ref main
-codex plugin add commit-and-pr@penguyen72-plugins
+codex plugin add git-craft@penguyen72-plugins
 ```
 
 - Claude Code session commands:
 
 ```text
 /plugin marketplace add penguyen72/agent-plugins
-/plugin install commit-and-pr@penguyen72-plugins
+/plugin install git-craft@penguyen72-plugins
 /reload-plugins
 ```
 
-- Usage examples using `$create-commit` and `$create-pr` for Codex and `/commit-and-pr:create-commit` and `/commit-and-pr:create-pr` for Claude Code.
+- Usage examples using `$git-craft:create-commit` and `$git-craft:create-pr` for Codex and `/git-craft:create-commit` and `/git-craft:create-pr` for Claude Code.
 - Development commands for the Python tests, repository validator, Codex validator, and Claude validator.
 - A security note that plugins may run Git and GitHub commands and should be reviewed before installation.
 
@@ -328,14 +328,14 @@ Expected: repository validation passes, all tests pass, and both JSON commands e
 - [ ] **Step 8: Commit marketplace packaging**
 
 ```bash
-git add .agents .claude-plugin plugins/commit-and-pr/.codex-plugin plugins/commit-and-pr/.claude-plugin README.md LICENSE tests/test_validate_repository.py
+git add .agents .claude-plugin plugins/git-craft/.codex-plugin plugins/git-craft/.claude-plugin README.md LICENSE tests/test_validate_repository.py
 git commit -m "feat: add cross-platform plugin marketplace"
 ```
 
 ### Task 3: Atomic Conventional Commit skill
 
 **Files:**
-- Create: `plugins/commit-and-pr/skills/create-commit/SKILL.md`
+- Create: `plugins/git-craft/skills/create-commit/SKILL.md`
 - Create: `tests/test_skill_contracts.py`
 
 **Interfaces:**
@@ -399,7 +399,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_skill_contracts -v
-python3 /Users/peynguyen/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/commit-and-pr/skills/create-commit
+python3 /Users/peynguyen/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/git-craft/skills/create-commit
 ```
 
 Expected: contract tests pass and quick validation prints `Skill is valid!`.
@@ -407,14 +407,14 @@ Expected: contract tests pass and quick validation prints `Skill is valid!`.
 - [ ] **Step 5: Commit the commit workflow**
 
 ```bash
-git add plugins/commit-and-pr/skills/create-commit/SKILL.md tests/test_skill_contracts.py
-git commit -m "feat(commit-and-pr): add commit workflow"
+git add plugins/git-craft/skills/create-commit/SKILL.md tests/test_skill_contracts.py
+git commit -m "feat(git-craft): add commit workflow"
 ```
 
 ### Task 4: Concise GitHub pull request skill
 
 **Files:**
-- Create: `plugins/commit-and-pr/skills/create-pr/SKILL.md`
+- Create: `plugins/git-craft/skills/create-pr/SKILL.md`
 - Modify: `tests/test_skill_contracts.py`
 
 **Interfaces:**
@@ -481,7 +481,7 @@ Run:
 
 ```bash
 python3 -m unittest tests.test_skill_contracts -v
-python3 /Users/peynguyen/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/commit-and-pr/skills/create-pr
+python3 /Users/peynguyen/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/git-craft/skills/create-pr
 ```
 
 Expected: all contract tests pass and quick validation prints `Skill is valid!` for `create-pr`.
@@ -489,15 +489,15 @@ Expected: all contract tests pass and quick validation prints `Skill is valid!` 
 - [ ] **Step 5: Commit the pull request workflow**
 
 ```bash
-git add plugins/commit-and-pr/skills/create-pr/SKILL.md tests/test_skill_contracts.py
-git commit -m "feat(commit-and-pr): add pull request workflow"
+git add plugins/git-craft/skills/create-pr/SKILL.md tests/test_skill_contracts.py
+git commit -m "feat(git-craft): add pull request workflow"
 ```
 
 ### Task 5: Distribution validation and isolated acceptance checks
 
 **Files:**
 - Modify: `README.md`
-- Create: `docs/testing/commit-and-pr-acceptance.md`
+- Create: `docs/testing/git-craft-acceptance.md`
 
 **Interfaces:**
 - Consumes: the complete repository from Tasks 1–4 and the two platform CLIs.
@@ -510,8 +510,8 @@ Run:
 ```bash
 python3 -m unittest discover -s tests -v
 python3 scripts/validate_repository.py .
-python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/commit-and-pr
-claude plugin validate ./plugins/commit-and-pr --strict
+python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft
+claude plugin validate ./plugins/git-craft --strict
 git diff --check
 ```
 
@@ -535,7 +535,7 @@ Compare the help output to README commands. Modify only command spelling or flag
 Create a uniquely named temporary directory:
 
 ```bash
-mktemp -d /private/tmp/commit-and-pr-acceptance.XXXXXX
+mktemp -d /private/tmp/git-craft-acceptance.XXXXXX
 ```
 
 Copy the returned absolute path into a task-specific `ACCEPTANCE_DIR` variable, then run:
@@ -549,10 +549,10 @@ git -C "$ACCEPTANCE_DIR" config user.email "plugin-test@example.com"
 Create two unrelated tracked changes in that temporary repository using normal file-editing tools: one application file and one documentation file. From `ACCEPTANCE_DIR`, start a fresh Claude Code session with the local plugin:
 
 ```bash
-claude --plugin-dir /Users/peynguyen/Repositories/agent-plugins/plugins/commit-and-pr
+claude --plugin-dir /Users/peynguyen/Repositories/agent-plugins/.worktrees/git-craft-plugin/plugins/git-craft
 ```
 
-Invoke `/commit-and-pr:create-commit`. Confirm it proposes two atomic commits, preserves any pre-staged file, shows explicit file lists, and pauses before mutation. Approve the commits because the repository is disposable; record the observed hashes and remaining clean status.
+Invoke `/git-craft:create-commit`. Confirm it proposes two atomic commits, preserves any pre-staged file, shows explicit file lists, and pauses before mutation. Approve the commits because the repository is disposable; record the observed hashes and remaining clean status.
 
 - [ ] **Step 4: Exercise non-mutating failure cases**
 
@@ -570,7 +570,7 @@ Do not configure a working remote, push, or approve `gh pr create` during these 
 
 - [ ] **Step 5: Record acceptance evidence**
 
-Write `docs/testing/commit-and-pr-acceptance.md` with:
+Write `docs/testing/git-craft-acceptance.md` with:
 
 - Date and tested plugin version `0.1.0`.
 - Validator commands and exit status.
@@ -585,8 +585,8 @@ Run:
 ```bash
 python3 -m unittest discover -s tests -v
 python3 scripts/validate_repository.py .
-python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/commit-and-pr
-claude plugin validate ./plugins/commit-and-pr --strict
+python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft
+claude plugin validate ./plugins/git-craft --strict
 git diff --check
 git status --short
 ```
@@ -596,8 +596,8 @@ Expected: every validator passes, `git diff --check` is empty, and `git status -
 - [ ] **Step 7: Commit acceptance evidence**
 
 ```bash
-git add README.md docs/testing/commit-and-pr-acceptance.md plugins/commit-and-pr tests
-git commit -m "test(commit-and-pr): verify plugin workflows"
+git add README.md docs/testing/git-craft-acceptance.md plugins/git-craft tests
+git commit -m "test(git-craft): verify plugin workflows"
 ```
 
 - [ ] **Step 8: Review the completed branch before publishing**
@@ -611,25 +611,8 @@ git log --stat --oneline --max-count=8
 git remote -v
 ```
 
-Expected: clean `main`, focused Conventional Commit history, all intended repository files in the diff, and `origin` set to `git@github.com:penguyen72/agent-plugins.git`.
+Expected: clean `feat/git-craft-plugin`, focused Conventional Commit history, all intended repository files in the log, and `origin` set to `git@github.com:penguyen72/agent-plugins.git`.
 
-- [ ] **Step 9: Obtain approval before publishing and local installation changes**
+- [ ] **Step 9: Hand the clean feature branch back to the controller**
 
-Show the final commit list and validation evidence. Ask separately for permission to:
-
-1. Run `git push -u origin main`.
-2. Add and install the GitHub marketplace in Codex.
-3. Add and install the GitHub marketplace in Claude Code.
-
-Do not infer approval for local plugin installation from approval to push.
-
-- [ ] **Step 10: Publish after approval and verify the remote**
-
-Run:
-
-```bash
-git push -u origin main
-git ls-remote --heads origin main
-```
-
-Expected: push succeeds and `git ls-remote` reports `refs/heads/main` at the local `HEAD` commit.
+Report the final commit list and validation evidence without pushing or changing installed marketplaces. After the whole-branch review, the controller must use `superpowers:finishing-a-development-branch` to present merge and publication options. Approval to merge or push does not imply approval to install the plugin into either local client.
