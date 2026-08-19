@@ -42,7 +42,7 @@ Use the installed skills:
 ```bash
 python3 -m unittest discover -s tests -v
 python3 scripts/validate_repository.py .
-python3 /Users/peynguyen/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft
+python3 ${CODEX_HOME:-$HOME/.codex}/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/git-craft
 claude plugin validate ./plugins/git-craft --strict
 ```
 
