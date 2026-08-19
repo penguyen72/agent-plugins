@@ -135,6 +135,36 @@ class ValidateRepositoryTests(unittest.TestCase):
                 validate_repository(root),
             )
 
+    def test_rejects_cross_platform_plugin_missing_from_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            catalog = root / ".claude-plugin/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIn(
+                "Cross-platform plugin 'git-craft' is missing from Claude marketplace catalog",
+                validate_repository(root),
+            )
+
+    def test_rejects_version_mismatch_for_plugin_missing_from_catalog(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            catalog = root / ".claude-plugin/marketplace.json"
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+            payload["plugins"] = []
+            catalog.write_text(json.dumps(payload), encoding="utf-8")
+            manifest = root / "plugins/git-craft/.claude-plugin/plugin.json"
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["version"] = "0.2.0"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIn(
+                "Plugin 'git-craft' has mismatched Codex and Claude versions",
+                validate_repository(root),
+            )
+
     def test_rejects_invalid_semver(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -145,6 +175,19 @@ class ValidateRepositoryTests(unittest.TestCase):
             manifest.write_text(json.dumps(payload), encoding="utf-8")
             self.assertIn(
                 "Codex manifest version for plugin 'git-craft' is not valid semantic version: '1.0'",
+                validate_repository(root),
+            )
+
+    def test_rejects_semver_prerelease_with_leading_zero(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_repo(root)
+            manifest = root / "plugins/git-craft/.codex-plugin/plugin.json"
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["version"] = "1.0.0-01"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertIn(
+                "Codex manifest version for plugin 'git-craft' is not valid semantic version: '1.0.0-01'",
                 validate_repository(root),
             )
 
