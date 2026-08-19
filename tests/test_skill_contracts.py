@@ -56,3 +56,9 @@ class CreatePullRequestSkillContractTests(unittest.TestCase):
         self.assertIn("72", body)
         self.assertIn("Never force-push", body)
         self.assertIn("Do not invent tests or results", body)
+        self.assertIn("Obtain explicit user approval before every push", body)
+        self.assertIn(
+            "Never amend, reset, rebase, force-push, discard work, or bypass hooks.",
+            body,
+        )
+        self.assertIn("Never rewrite history, even if separately requested.", body)
