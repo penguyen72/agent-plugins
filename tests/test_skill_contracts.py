@@ -31,3 +31,6 @@ class CreateCommitSkillContractTests(unittest.TestCase):
         self.assertIn("72", body)
         self.assertNotIn("git add .", body)
         self.assertIn("Never amend, reset, force, discard work, or bypass hooks", body)
+        self.assertIn("every path already in the index", body)
+        self.assertIn("re-check the cached diff and file set immediately before commit", body)
+        self.assertNotIn("unless separately requested", body)

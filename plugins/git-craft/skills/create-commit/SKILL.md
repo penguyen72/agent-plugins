@@ -23,11 +23,11 @@ Stop if the directory is outside Git or if no staged or unstaged changes exist.
 
 ## 2. Protect existing work
 
-Distinguish staged files from unstaged files. Never unstage, rewrite, or discard existing work. Flag `.env` files, credentials, private keys, large generated files, and unexpected binaries before staging. If the existing staged set conflicts with an atomic proposal, explain the conflict and ask how to proceed.
+Distinguish staged files from unstaged files. Never unstage, rewrite, or discard existing work. Flag `.env` files, credentials, private keys, large generated files, and unexpected binaries before staging. Every path already in the index must appear in the exact approved atomic proposal; otherwise stop before committing and ask for a new proposal and approval.
 
 ## 3. Group
 
-Keep one coherent unit together. Split unrelated behavior, tests, documentation, or infrastructure into separate atomic proposals. Preserve the existing staged set unless the user explicitly directs a different safe action.
+Keep one coherent unit together. Split unrelated behavior, tests, documentation, or infrastructure into separate atomic proposals. Explain any staged-set conflict and preserve existing staged work.
 
 ## 4. Format
 
@@ -58,7 +58,7 @@ Before mutation, show every proposed commit's exact message and explicit file li
 
 ## 6. Approve and execute
 
-Obtain approval for each proposed commit. For each approved proposal, stage only its explicit paths with `git add -- <paths>`, run `git diff --cached --check`, then run the normal `git commit` command so configured hooks execute. Do not use a hook-bypass option.
+Obtain approval for each proposed commit. For each approved proposal, stage only its explicit paths with `git add -- <paths>`, run `git diff --cached --check`, and re-check the cached diff and file set immediately before commit. Confirm every path already in the index is in the exact approved atomic proposal; otherwise stop and ask for a new proposal and approval. Only then run the normal `git commit` command so configured hooks execute. Do not use a hook-bypass option.
 
 ## 7. Verify
 
@@ -66,4 +66,4 @@ After the commit command succeeds, read its observed hash with `git rev-parse --
 
 ## 8. Failures
 
-Retain actionable hook and Git error text, then stop after a failure. Never amend, reset, force, discard work, or bypass hooks unless separately requested.
+Retain actionable hook and Git error text, then stop after a failure. Never amend, reset, force, discard work, or bypass hooks. These actions are out of scope for this plugin.

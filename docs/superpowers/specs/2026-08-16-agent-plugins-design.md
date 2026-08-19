@@ -71,11 +71,11 @@ The `create-commit` skill follows this sequence:
 4. Determine whether the changes form one coherent commit or multiple atomic commits.
 5. Propose each commit's explicit file set and complete message.
 6. Ask for approval before staging and creating each commit.
-7. Stage only the approved explicit paths.
-8. Run the normal commit command without bypassing hooks.
+7. Stage only the approved explicit paths, then re-check the cached diff and file set immediately before committing; every indexed path must appear in the exact approved atomic proposal.
+8. Stop and request a new proposal and approval if any indexed path is absent from that proposal; otherwise run the normal commit command without bypassing hooks.
 9. Report the resulting commit hash or the actionable failure.
 
-The skill must preserve existing staged work. When the staged set conflicts with the proposed atomic grouping, it explains the conflict and asks the user how to proceed. It must not amend commits, reset changes, force an operation, or skip hooks unless the user explicitly requests that separate action.
+The skill must preserve existing staged work. When the staged set conflicts with the proposed atomic grouping, it explains the conflict and asks the user how to proceed. It must not amend commits, reset changes, force an operation, discard work, or skip hooks; these actions are out of scope for the plugin.
 
 ## Pull Request Workflow
 
