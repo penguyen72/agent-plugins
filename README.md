@@ -9,7 +9,7 @@ This repository is a dual-platform marketplace for small, focused developer plug
 ## Install with Codex
 
 ```bash
-codex plugin marketplace add penguyen72/agent-plugins --ref main
+codex plugin marketplace add penguyen72/poopstack --ref main
 codex plugin add git-craft@penguyen72-plugins
 ```
 
@@ -25,7 +25,7 @@ $git-craft:create-pr
 In a Claude Code session, run:
 
 ```text
-/plugin marketplace add penguyen72/agent-plugins
+/plugin marketplace add penguyen72/poopstack
 /plugin install git-craft@penguyen72-plugins
 /reload-plugins
 ```

@@ -33,11 +33,11 @@ The commit fixture was created at a unique disposable path under `/private/tmp` 
 After the user authenticated Claude Code, `claude auth status` succeeded outside the sandbox. The following bounded local-plugin print-mode probes were run from the fixture without mutation permission:
 
 ```bash
-timeout 120s claude --plugin-dir /Users/peynguyen/Repositories/agent-plugins/.worktrees/git-craft-plugin/plugins/git-craft --permission-mode plan --output-format json -p "/git-craft:create-commit Inspect the current repository. Propose atomic commits with exact file lists, preserve the existing staged file, and pause for my approval. Do not stage, commit, or otherwise mutate anything yet."
+timeout 120s claude --plugin-dir /Users/peynguyen/Repositories/poopstack/.worktrees/git-craft-plugin/plugins/git-craft --permission-mode plan --output-format json -p "/git-craft:create-commit Inspect the current repository. Propose atomic commits with exact file lists, preserve the existing staged file, and pause for my approval. Do not stage, commit, or otherwise mutate anything yet."
 ```
 
 ```bash
-timeout 90s claude --plugin-dir /Users/peynguyen/Repositories/agent-plugins/.worktrees/git-craft-plugin/plugins/git-craft --permission-mode plan --no-session-persistence -p "/git-craft:create-commit Inspect current changes and give only the approval-gated atomic commit proposal. Preserve the already staged app.py. Do not make any mutation."
+timeout 90s claude --plugin-dir /Users/peynguyen/Repositories/poopstack/.worktrees/git-craft-plugin/plugins/git-craft --permission-mode plan --no-session-persistence -p "/git-craft:create-commit Inspect current changes and give only the approval-gated atomic commit proposal. Preserve the already staged app.py. Do not make any mutation."
 ```
 
 Neither print-mode probe produced usable stdout or stderr within its bounded wait. An interactive local-plugin session passed Claude's workspace-trust prompt but likewise produced no proposal within the bounded wait after receiving `/git-craft:create-commit`; it was interrupted without mutating the fixture. The fixture remained at its baseline commit with `app.py` pre-staged and `README.md` unstaged.

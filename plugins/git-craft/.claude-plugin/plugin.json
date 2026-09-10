@@ -5,7 +5,7 @@
   "author": {
     "name": "Pey Nguyen"
   },
-  "repository": "https://github.com/penguyen72/agent-plugins",
+  "repository": "https://github.com/penguyen72/poopstack",
   "license": "MIT",
   "keywords": ["git", "github", "commits", "pull-requests"],
   "skills": "./skills/"

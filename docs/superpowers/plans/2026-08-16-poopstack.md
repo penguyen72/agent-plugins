@@ -1,8 +1,8 @@
-# Agent Plugins Implementation Plan
+# Poopstack Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Publish a dual-platform `agent-plugins` marketplace whose first plugin creates concise, approved Conventional Commits and GitHub pull requests in Codex and Claude Code.
+**Goal:** Publish a dual-platform `poopstack` marketplace whose first plugin creates concise, approved Conventional Commits and GitHub pull requests in Codex and Claude Code.
 
 **Architecture:** Keep each plugin self-contained under `plugins/`. The `git-craft` plugin shares two portable `SKILL.md` workflows while exposing separate Codex and Claude manifests; root catalogs adapt that plugin to each platform's marketplace schema. A dependency-free Python validator checks the cross-platform invariants, while static contract tests and isolated Git repositories cover safety-critical workflow behavior.
 
@@ -10,8 +10,8 @@
 
 ## Global Constraints
 
-- Repository path: `/Users/peynguyen/Repositories/agent-plugins`.
-- GitHub remote: `git@github.com:penguyen72/agent-plugins.git`.
+- Repository path: `/Users/peynguyen/Repositories/poopstack`.
+- GitHub remote: `git@github.com:penguyen72/poopstack.git`.
 - Default branch: `main`.
 - Marketplace identifier: `penguyen72-plugins`.
 - License: MIT.
@@ -249,7 +249,7 @@ Write `plugins/git-craft/.codex-plugin/plugin.json` as:
     "name": "Pey Nguyen",
     "url": "https://github.com/penguyen72"
   },
-  "repository": "https://github.com/penguyen72/agent-plugins",
+  "repository": "https://github.com/penguyen72/poopstack",
   "license": "MIT",
   "keywords": ["git", "github", "commits", "pull-requests"],
   "skills": "./skills/",
@@ -278,7 +278,7 @@ Write `plugins/git-craft/.claude-plugin/plugin.json` as:
   "author": {
     "name": "Pey Nguyen"
   },
-  "repository": "https://github.com/penguyen72/agent-plugins",
+  "repository": "https://github.com/penguyen72/poopstack",
   "license": "MIT",
   "keywords": ["git", "github", "commits", "pull-requests"],
   "skills": "./skills/"
@@ -294,14 +294,14 @@ Write `README.md` with:
 - Codex install commands:
 
 ```bash
-codex plugin marketplace add penguyen72/agent-plugins --ref main
+codex plugin marketplace add penguyen72/poopstack --ref main
 codex plugin add git-craft@penguyen72-plugins
 ```
 
 - Claude Code session commands:
 
 ```text
-/plugin marketplace add penguyen72/agent-plugins
+/plugin marketplace add penguyen72/poopstack
 /plugin install git-craft@penguyen72-plugins
 /reload-plugins
 ```
@@ -549,7 +549,7 @@ git -C "$ACCEPTANCE_DIR" config user.email "plugin-test@example.com"
 Create two unrelated tracked changes in that temporary repository using normal file-editing tools: one application file and one documentation file. From `ACCEPTANCE_DIR`, start a fresh Claude Code session with the local plugin:
 
 ```bash
-claude --plugin-dir /Users/peynguyen/Repositories/agent-plugins/.worktrees/git-craft-plugin/plugins/git-craft
+claude --plugin-dir /Users/peynguyen/Repositories/poopstack/.worktrees/git-craft-plugin/plugins/git-craft
 ```
 
 Invoke `/git-craft:create-commit`. Confirm it proposes two atomic commits, preserves any pre-staged file, shows explicit file lists, and pauses before mutation. Approve the commits because the repository is disposable; record the observed hashes and remaining clean status.
@@ -611,7 +611,7 @@ git log --stat --oneline --max-count=8
 git remote -v
 ```
 
-Expected: clean `feat/git-craft-plugin`, focused Conventional Commit history, all intended repository files in the log, and `origin` set to `git@github.com:penguyen72/agent-plugins.git`.
+Expected: clean `feat/git-craft-plugin`, focused Conventional Commit history, all intended repository files in the log, and `origin` set to `git@github.com:penguyen72/poopstack.git`.
 
 - [ ] **Step 9: Hand the clean feature branch back to the controller**
 

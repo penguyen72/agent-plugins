@@ -1,4 +1,4 @@
-# Agent Plugins Repository Design
+# Poopstack Repository Design
 
 ## Purpose
 
@@ -8,17 +8,17 @@ The first plugin, `git-craft`, standardizes concise Conventional Commit messages
 
 ## Repository and Remote
 
-- Local path: `/Users/peynguyen/Repositories/agent-plugins`
-- GitHub remote: `git@github.com:penguyen72/agent-plugins.git`
+- Local path: `/Users/peynguyen/Repositories/poopstack`
+- GitHub remote: `git@github.com:penguyen72/poopstack.git`
 - Default branch: `main`
-- Repository name: `agent-plugins`
+- Repository name: `poopstack`
 - Marketplace name: `penguyen72-plugins`
 - License: MIT
 
 ## Repository Architecture
 
 ```text
-agent-plugins/
+poopstack/
 ├── README.md
 ├── LICENSE
 ├── .agents/
@@ -192,7 +192,7 @@ Automated tests must not push branches or create real pull requests. Any end-to-
 
 Each plugin has its own semantic version. A cross-platform plugin keeps the same version in both manifests. Changes to behavior or packaging require the appropriate plugin version bump and catalog validation before publishing.
 
-Users install the repository as a marketplace, then select individual plugins. The initial README will document these flows using `penguyen72/agent-plugins` as the GitHub marketplace source and `penguyen72-plugins` as the marketplace identifier.
+Users install the repository as a marketplace, then select individual plugins. The initial README will document these flows using `penguyen72/poopstack` as the GitHub marketplace source and `penguyen72-plugins` as the marketplace identifier.
 
 ## Success Criteria
 
