@@ -1,4 +1,8 @@
+import contextlib
+import io
+import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -213,6 +217,187 @@ class ObservationSchemaTests(unittest.TestCase):
             "captured_at must be an RFC 3339 UTC timestamp ending in Z",
             store.validate_observation(record),
         )
+
+
+class ObservationPersistenceTests(unittest.TestCase):
+    def test_append_creates_one_compact_valid_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            self.assertTrue(store.append_observation(valid_observation(), root))
+            lines = (root / "observations.jsonl").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(json.loads(lines[0]), valid_observation())
+            self.assertNotIn(": ", lines[0])
+
+    def test_duplicate_id_is_a_no_op(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertTrue(store.append_observation(valid_observation(), root))
+            self.assertFalse(store.append_observation(valid_observation(), root))
+            self.assertEqual(
+                len((root / "observations.jsonl").read_text().splitlines()), 1
+            )
+
+    def test_duplicate_id_is_a_no_op_when_it_is_not_the_last_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = valid_observation()
+            second = valid_observation()
+            second["id"] = "c" * 64
+            self.assertTrue(store.append_observation(first, root))
+            self.assertTrue(store.append_observation(second, root))
+            self.assertFalse(store.append_observation(first, root))
+            self.assertEqual(
+                len((root / "observations.jsonl").read_text().splitlines()), 2
+            )
+
+    def test_invalid_observation_does_not_create_store(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "missing"
+            record = valid_observation()
+            record["topic"] = ""
+            with self.assertRaisesRegex(ValueError, "topic"):
+                store.append_observation(record, root)
+            self.assertFalse(root.exists())
+
+    def test_load_reports_bad_line_and_keeps_valid_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            root.mkdir()
+            valid = json.dumps(valid_observation(), separators=(",", ":"))
+            (root / "observations.jsonl").write_text(
+                f"not-json\n{valid}\n", encoding="utf-8"
+            )
+            records, errors = store.load_observations(root)
+            self.assertEqual(records, [valid_observation()])
+            self.assertIn("line 1", errors[0])
+
+    def test_load_reports_invalid_record_and_keeps_valid_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            root.mkdir()
+            invalid = valid_observation()
+            invalid["topic"] = ""
+            content = "\n".join(
+                json.dumps(item, separators=(",", ":"))
+                for item in (invalid, valid_observation())
+            )
+            (root / "observations.jsonl").write_text(
+                content + "\n", encoding="utf-8"
+            )
+            records, errors = store.load_observations(root)
+            self.assertEqual(records, [valid_observation()])
+            self.assertIn("line 1", errors[0])
+            self.assertIn("topic", errors[0])
+
+    def test_scrub_excerpt_redacts_before_truncating(self):
+        text = "Authorization: Bearer secret-token " + ("x" * 400)
+        scrubbed = store.scrub_excerpt(text)
+        self.assertNotIn("secret-token", scrubbed)
+        self.assertLessEqual(len(scrubbed), 280)
+
+    def test_scrub_excerpt_redacts_credential_assignment(self):
+        self.assertNotIn("abc123", store.scrub_excerpt("API_KEY=abc123"))
+
+    def test_scrub_excerpt_redacts_private_key_header(self):
+        self.assertNotIn(
+            "BEGIN RSA PRIVATE KEY",
+            store.scrub_excerpt("-----BEGIN RSA PRIVATE KEY-----"),
+        )
+
+    def test_append_scrubs_evidence_without_truncating_core_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            record = valid_observation()
+            record["evidence"] = [
+                {"role": "user", "excerpt": "API_TOKEN=secret-value"}
+            ]
+            self.assertTrue(store.append_observation(record, root))
+            records, errors = store.load_observations(root)
+            self.assertEqual(errors, [])
+            self.assertNotIn("secret-value", records[0]["evidence"][0]["excerpt"])
+
+            oversized = valid_observation()
+            oversized["confusion"] = "x" * 501
+            with self.assertRaisesRegex(ValueError, "confusion"):
+                store.append_observation(oversized, root)
+
+    def test_lock_contention_leaves_file_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".observations.lock").write_text("held")
+            with self.assertRaisesRegex(OSError, "lock"):
+                store.append_observation(valid_observation(), root)
+            self.assertFalse((root / "observations.jsonl").exists())
+
+    def test_raw_session_identifier_is_absent_from_persisted_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw_session_id = "session/秘密/secret-123"
+            record = valid_observation()
+            record["session_key"] = store.hash_session_key("codex", raw_session_id)
+            record["id"] = store.make_observation_id(
+                record["session_key"],
+                record["confusion"],
+                record["successful_explanation"],
+                record["candidate_rule"],
+            )
+            store.append_observation(record, root)
+            persisted = (root / "observations.jsonl").read_text(encoding="utf-8")
+            self.assertNotIn(raw_session_id, persisted)
+            self.assertNotIn("secret-123", persisted)
+
+    def test_cli_append_reads_json_file_and_prints_appended(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "store"
+            source = Path(directory) / "observation.json"
+            source.write_text(json.dumps(valid_observation()), encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = store.main(
+                    [
+                        "append-observation",
+                        "--input",
+                        str(source),
+                        "--store-root",
+                        str(root),
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue().strip(), "Observation appended.")
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = store.main(
+                    [
+                        "append-observation",
+                        "--input",
+                        str(source),
+                        "--store-root",
+                        str(root),
+                    ]
+                )
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue().strip(), "Observation already exists.")
+
+    def test_cli_validate_reports_success_and_errors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "observation.json"
+            source.write_text(json.dumps(valid_observation()), encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = store.main(["validate-observation", "--input", str(source)])
+            self.assertEqual(code, 0)
+            self.assertEqual(stdout.getvalue().strip(), "Observation is valid.")
+
+            source.write_text("not-json", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = store.main(["validate-observation", "--input", str(source)])
+            self.assertEqual(code, 1)
+            self.assertTrue(stderr.getvalue().strip())
 
 
 if __name__ == "__main__":

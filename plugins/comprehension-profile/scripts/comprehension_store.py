@@ -1,11 +1,16 @@
 """Validate and persist Comprehension Profile learning observations."""
 
-from collections.abc import Mapping
+import argparse
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from datetime import datetime
 from hashlib import sha256
+import json
 import os
 from pathlib import Path
 import re
+import sys
+import time
 
 
 SCHEMA_VERSION = 1
@@ -45,6 +50,27 @@ ALLOWED_SOURCES = {"manual", "automatic"}
 ALLOWED_HARNESSES = {"codex", "claude", "other"}
 EVIDENCE_FIELDS = {"role", "excerpt"}
 ALLOWED_EVIDENCE_ROLES = {"user", "assistant"}
+LOCK_NAME = ".observations.lock"
+OBSERVATIONS_NAME = "observations.jsonl"
+LOCK_ATTEMPTS = 5
+LOCK_DELAY_SECONDS = 0.02
+REDACTIONS = (
+    (
+        re.compile(r"(authorization:\s*bearer\s+)\S+", re.IGNORECASE),
+        r"\1[REDACTED]",
+    ),
+    (
+        re.compile(
+            r"\b([A-Z0-9_]*(?:KEY|TOKEN|PASSWORD|SECRET))\s*=\s*\S+",
+            re.IGNORECASE,
+        ),
+        r"\1=[REDACTED]",
+    ),
+    (
+        re.compile(r"-----BEGIN [^-]*PRIVATE KEY-----", re.IGNORECASE),
+        "[REDACTED PRIVATE KEY]",
+    ),
+)
 
 
 def resolve_store_root(env=None, home=None):
@@ -65,6 +91,14 @@ def make_observation_id(session_key: str, *parts: str) -> str:
     normalized = [" ".join(part.split()) for part in parts]
     material = "\0".join([session_key, *normalized])
     return sha256(material.encode("utf-8")).hexdigest()
+
+
+def scrub_excerpt(text: str, max_length: int = MAX_EXCERPT_LENGTH) -> str:
+    """Redact common credentials before limiting a persisted excerpt."""
+    scrubbed = text
+    for pattern, replacement in REDACTIONS:
+        scrubbed = pattern.sub(replacement, scrubbed)
+    return scrubbed[:max_length]
 
 
 def _required_string(
@@ -217,3 +251,157 @@ def validate_observation(record: object) -> list[str]:
             errors.append(f"automatic observation requires signal: {signal}")
 
     return errors
+
+
+def _normalize_observation(record: object) -> object:
+    if not isinstance(record, Mapping):
+        return record
+    normalized = dict(record)
+    evidence = normalized.get("evidence")
+    if isinstance(evidence, list):
+        normalized_evidence: list[object] = []
+        for item in evidence:
+            if not isinstance(item, Mapping):
+                normalized_evidence.append(item)
+                continue
+            normalized_item = dict(item)
+            excerpt = normalized_item.get("excerpt")
+            if isinstance(excerpt, str):
+                normalized_item["excerpt"] = scrub_excerpt(excerpt)
+            normalized_evidence.append(normalized_item)
+        normalized["evidence"] = normalized_evidence
+    return normalized
+
+
+def _restrict_file_permissions(path: Path) -> None:
+    os.chmod(path, 0o600)
+
+
+@contextmanager
+def _observation_lock(store_root: Path) -> Iterator[None]:
+    lock_path = store_root / LOCK_NAME
+    owns_lock = False
+    for attempt in range(LOCK_ATTEMPTS):
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
+            )
+        except FileExistsError:
+            if attempt == LOCK_ATTEMPTS - 1:
+                raise OSError(
+                    f"Could not acquire observation lock for store: {store_root}"
+                ) from None
+            time.sleep(LOCK_DELAY_SECONDS)
+        else:
+            os.close(descriptor)
+            owns_lock = True
+            break
+
+    try:
+        yield
+    finally:
+        if owns_lock:
+            lock_path.unlink()
+
+
+def load_observations(
+    store_root: Path,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Load valid observations and report line-specific errors without mutation."""
+    path = store_root / OBSERVATIONS_NAME
+    if not path.exists():
+        return [], []
+
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        return [], [f"Cannot read {path}: {error}"]
+
+    records: list[dict[str, object]] = []
+    errors: list[str] = []
+    for line_number, line in enumerate(lines, start=1):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as error:
+            errors.append(f"line {line_number}: invalid JSON: {error.msg}")
+            continue
+        record_errors = validate_observation(record)
+        if record_errors:
+            errors.append(f"line {line_number}: {'; '.join(record_errors)}")
+            continue
+        records.append(dict(record))
+    return records, errors
+
+
+def append_observation(record: dict[str, object], store_root: Path) -> bool:
+    """Append one valid observation, returning false for a duplicate ID."""
+    normalized = _normalize_observation(record)
+    errors = validate_observation(normalized)
+    if errors:
+        raise ValueError("; ".join(errors))
+    if not isinstance(normalized, dict):
+        raise ValueError("observation must be an object")
+
+    store_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with _observation_lock(store_root):
+        existing, load_errors = load_observations(store_root)
+        if load_errors:
+            raise ValueError("; ".join(load_errors))
+        if any(item["id"] == normalized["id"] for item in existing):
+            return False
+
+        payload = json.dumps(
+            normalized,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ) + "\n"
+        path = store_root / OBSERVATIONS_NAME
+        with path.open("a", encoding="utf-8", newline="") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _restrict_file_permissions(path)
+        return True
+
+
+def _read_json_object(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Validate or append a learning observation from a UTF-8 JSON file."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate_parser = subparsers.add_parser("validate-observation")
+    validate_parser.add_argument("--input", required=True, type=Path)
+
+    append_parser = subparsers.add_parser("append-observation")
+    append_parser.add_argument("--input", required=True, type=Path)
+    append_parser.add_argument("--store-root", type=Path)
+
+    arguments = parser.parse_args(argv)
+    try:
+        record = _normalize_observation(_read_json_object(arguments.input))
+        errors = validate_observation(record)
+        if errors:
+            raise ValueError("; ".join(errors))
+        if arguments.command == "validate-observation":
+            print("Observation is valid.")
+            return 0
+        if not isinstance(record, dict):
+            raise ValueError("observation must be an object")
+        store_root = arguments.store_root or resolve_store_root()
+        appended = append_observation(record, store_root)
+        print("Observation appended." if appended else "Observation already exists.")
+        return 0
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
