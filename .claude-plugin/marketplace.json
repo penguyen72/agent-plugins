@@ -9,6 +9,12 @@
       "source": "./plugins/git-craft",
       "description": "Create concise Conventional Commits and GitHub pull requests",
       "category": "Development"
+    },
+    {
+      "name": "comprehension-profile",
+      "source": "./plugins/comprehension-profile",
+      "description": "Learn and apply a small profile of demonstrated technical comprehension patterns.",
+      "category": "Development"
     }
   ]
 }
