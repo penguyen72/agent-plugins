@@ -20,6 +20,7 @@ Use the installed skills:
 ```text
 $git-craft:create-commit
 $git-craft:create-pr
+$comprehension-profile:capture-learning-pattern
 ```
 
 ## Install with Claude Code
@@ -38,6 +39,7 @@ Use the installed skills:
 ```text
 /git-craft:create-commit
 /git-craft:create-pr
+/comprehension-profile:capture-learning-pattern
 ```
 
 ## Comprehension Profile storage
@@ -51,6 +53,11 @@ Manual capture creates evidence only; it never creates or updates `profile.md`.
 Only the future profile refiner will be allowed to write that canonical profile.
 Automatic learning-moment detection is not included yet and will arrive in a
 separate implementation.
+
+Invoke `capture-learning-pattern` after a technical explanation clearly clicks.
+It previews one observation and its local store path, then requires approval
+before appending. Capture does not turn the candidate into a profile rule; the
+future refiner is the only profile writer.
 
 ## Development
 
