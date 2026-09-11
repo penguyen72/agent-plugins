@@ -1,5 +1,19 @@
 {
   "name": "comprehension-profile",
   "version": "0.1.0",
-  "description": "Learn and apply a small profile of demonstrated technical comprehension patterns."
+  "description": "Learn and apply a small profile of demonstrated technical comprehension patterns.",
+  "author": {
+    "name": "Pey Nguyen"
+  },
+  "interface": {
+    "displayName": "Comprehension Profile",
+    "shortDescription": "Capture demonstrated learning patterns.",
+    "longDescription": "Record approved evidence from technical explanations that clearly moved from confusion to understanding.",
+    "developerName": "Pey Nguyen",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Capture the learning pattern that just clicked."
+    ]
+  }
 }
