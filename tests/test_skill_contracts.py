@@ -102,6 +102,14 @@ class CaptureLearningPatternSkillContractTests(unittest.TestCase):
         self.assertIn("explicit approval", self.body.lower())
         self.assertIn("append-observation", self.body)
 
+    def test_skill_canonicalizes_preview_and_reuses_the_approved_path(self):
+        self.assertIn("scrub_excerpt", self.body)
+        self.assertIn("validate_observation", self.body)
+        self.assertIn("canonical observation", self.body.lower())
+        self.assertIn("same resolved store path", self.body.lower())
+        self.assertIn("python3", self.body)
+        self.assertIn("--store-root", self.body)
+
     def test_skill_never_reads_or_writes_profile(self):
         self.assertIn("must not read or modify `profile.md`", self.body.lower())
         self.assertNotIn("write-profile", self.body)

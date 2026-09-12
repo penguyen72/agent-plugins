@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
+import stat
 import sys
 import time
 
@@ -246,7 +248,11 @@ def validate_observation(record: object) -> list[str]:
 
     if source == "automatic":
         signals = record.get("signals")
-        present = set(signals) if isinstance(signals, list) else set()
+        present = (
+            {signal for signal in signals if isinstance(signal, str)}
+            if isinstance(signals, list)
+            else set()
+        )
         for signal in sorted(AUTOMATIC_SIGNALS - present):
             errors.append(f"automatic observation requires signal: {signal}")
 
@@ -273,14 +279,11 @@ def _normalize_observation(record: object) -> object:
     return normalized
 
 
-def _restrict_file_permissions(path: Path) -> None:
-    os.chmod(path, 0o600)
-
-
 @contextmanager
 def _observation_lock(store_root: Path) -> Iterator[None]:
     lock_path = store_root / LOCK_NAME
-    owns_lock = False
+    lock_identity: tuple[int, int] | None = None
+    lock_token = secrets.token_hex(16).encode("ascii")
     for attempt in range(LOCK_ATTEMPTS):
         try:
             descriptor = os.open(
@@ -295,30 +298,154 @@ def _observation_lock(store_root: Path) -> Iterator[None]:
                 ) from None
             time.sleep(LOCK_DELAY_SECONDS)
         else:
-            os.close(descriptor)
-            owns_lock = True
+            lock_status = os.fstat(descriptor)
+            lock_identity = (lock_status.st_dev, lock_status.st_ino)
+            try:
+                _write_all(descriptor, lock_token)
+                os.fsync(descriptor)
+            except BaseException:
+                os.close(descriptor)
+                _remove_lock_if_identity(lock_path, lock_identity)
+                raise
+            else:
+                os.close(descriptor)
             break
 
     try:
         yield
     finally:
-        if owns_lock:
-            lock_path.unlink()
+        if lock_identity is not None:
+            _remove_owned_lock(lock_path, lock_identity, lock_token)
 
 
-def load_observations(
-    store_root: Path,
-) -> tuple[list[dict[str, object]], list[str]]:
-    """Load valid observations and report line-specific errors without mutation."""
-    path = store_root / OBSERVATIONS_NAME
-    if not path.exists():
-        return [], []
+def _write_all(descriptor: int, payload: bytes) -> None:
+    offset = 0
+    while offset < len(payload):
+        written = os.write(descriptor, payload[offset:])
+        if written <= 0:
+            raise OSError("Could not write observation lock token")
+        offset += written
 
+
+def _remove_lock_if_identity(
+    lock_path: Path,
+    expected_identity: tuple[int, int],
+) -> None:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError) as error:
-        return [], [f"Cannot read {path}: {error}"]
+        path_status = os.lstat(lock_path)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(path_status.st_mode):
+        return
+    if (path_status.st_dev, path_status.st_ino) != expected_identity:
+        return
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
 
+
+def _remove_owned_lock(
+    lock_path: Path,
+    expected_identity: tuple[int, int],
+    expected_token: bytes,
+) -> None:
+    try:
+        path_status = os.lstat(lock_path)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(path_status.st_mode):
+        return
+    if (path_status.st_dev, path_status.st_ino) != expected_identity:
+        return
+
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(lock_path, flags)
+    except OSError:
+        return
+    try:
+        opened_status = os.fstat(descriptor)
+        if (opened_status.st_dev, opened_status.st_ino) != expected_identity:
+            return
+        if os.read(descriptor, len(expected_token) + 1) != expected_token:
+            return
+    finally:
+        os.close(descriptor)
+    _remove_lock_if_identity(lock_path, expected_identity)
+
+
+def _file_identity(status: os.stat_result) -> tuple[int, int]:
+    return status.st_dev, status.st_ino
+
+
+def _regular_file_status(path: Path) -> os.stat_result | None:
+    try:
+        status = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(status.st_mode):
+        raise OSError(f"Observation store path must be a regular file: {path}")
+    return status
+
+
+def _verify_opened_regular_file(
+    path: Path,
+    descriptor: int,
+    initial_status: os.stat_result | None,
+) -> tuple[int, int]:
+    opened_status = os.fstat(descriptor)
+    if not stat.S_ISREG(opened_status.st_mode):
+        raise OSError(f"Observation store path must be a regular file: {path}")
+    current_status = _regular_file_status(path)
+    if current_status is None:
+        raise OSError(f"Observation store path changed while opening: {path}")
+    opened_identity = _file_identity(opened_status)
+    if _file_identity(current_status) != opened_identity:
+        raise OSError(f"Observation store path changed while opening: {path}")
+    if initial_status is not None and _file_identity(initial_status) != opened_identity:
+        raise OSError(f"Observation store path changed while opening: {path}")
+    return opened_identity
+
+
+def _read_observation_lines(path: Path) -> list[str] | None:
+    initial_status = _regular_file_status(path)
+    if initial_status is None:
+        return None
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        _verify_opened_regular_file(path, descriptor, initial_status)
+        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+            descriptor = -1
+            return handle.read().splitlines()
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+@contextmanager
+def _open_observations_for_append(path: Path) -> Iterator[object]:
+    initial_status = _regular_file_status(path)
+    flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+    if initial_status is None:
+        flags |= os.O_CREAT | os.O_EXCL
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        _verify_opened_regular_file(path, descriptor, initial_status)
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "a+", encoding="utf-8", newline="") as handle:
+            descriptor = -1
+            yield handle
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _parse_observation_lines(
+    lines: list[str],
+) -> tuple[list[dict[str, object]], list[str]]:
     records: list[dict[str, object]] = []
     errors: list[str] = []
     for line_number, line in enumerate(lines, start=1):
@@ -335,6 +462,20 @@ def load_observations(
     return records, errors
 
 
+def load_observations(
+    store_root: Path,
+) -> tuple[list[dict[str, object]], list[str]]:
+    """Load valid observations and report line-specific errors without mutation."""
+    path = store_root / OBSERVATIONS_NAME
+    try:
+        lines = _read_observation_lines(path)
+    except (OSError, UnicodeError) as error:
+        return [], [f"Cannot read {path}: {error}"]
+    if lines is None:
+        return [], []
+    return _parse_observation_lines(lines)
+
+
 def append_observation(record: dict[str, object], store_root: Path) -> bool:
     """Append one valid observation, returning false for a duplicate ID."""
     normalized = _normalize_observation(record)
@@ -345,25 +486,34 @@ def append_observation(record: dict[str, object], store_root: Path) -> bool:
         raise ValueError("observation must be an object")
 
     store_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = store_root / OBSERVATIONS_NAME
     with _observation_lock(store_root):
-        existing, load_errors = load_observations(store_root)
-        if load_errors:
-            raise ValueError("; ".join(load_errors))
-        if any(item["id"] == normalized["id"] for item in existing):
-            return False
-
         payload = json.dumps(
             normalized,
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
         ) + "\n"
-        path = store_root / OBSERVATIONS_NAME
-        with path.open("a", encoding="utf-8", newline="") as handle:
+        with _open_observations_for_append(path) as handle:
+            handle.seek(0)
+            try:
+                lines = handle.read().splitlines()
+            except UnicodeError as error:
+                raise ValueError(f"Cannot read {path}: {error}") from error
+            existing, load_errors = _parse_observation_lines(lines)
+            if load_errors:
+                raise ValueError("; ".join(load_errors))
+            _verify_opened_regular_file(
+                path, handle.fileno(), os.fstat(handle.fileno())
+            )
+            if any(item["id"] == normalized["id"] for item in existing):
+                return False
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        _restrict_file_permissions(path)
+            _verify_opened_regular_file(
+                path, handle.fileno(), os.fstat(handle.fileno())
+            )
         return True
 
 

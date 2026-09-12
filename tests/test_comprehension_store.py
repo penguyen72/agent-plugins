@@ -1,12 +1,17 @@
 import contextlib
 import io
 import json
+import os
 import re
+import stat
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
-from tests.comprehension_helpers import load_plugin_module
+from tests.comprehension_helpers import PLUGIN_ROOT, load_plugin_module
 
 
 store = load_plugin_module(
@@ -218,6 +223,16 @@ class ObservationSchemaTests(unittest.TestCase):
             store.validate_observation(record),
         )
 
+    def test_automatic_observation_rejects_non_string_signals_without_crashing(self):
+        record = valid_observation()
+        record["source"] = "automatic"
+        record["signals"] = ["explicit_confusion", [], {"signal": "invalid"}]
+        errors = store.validate_observation(record)
+        self.assertIn("signals must contain only strings", errors)
+        self.assertIn(
+            "automatic observation requires signal: user_restatement", errors
+        )
+
 
 class ObservationPersistenceTests(unittest.TestCase):
     def test_append_creates_one_compact_valid_line(self):
@@ -292,6 +307,20 @@ class ObservationPersistenceTests(unittest.TestCase):
             self.assertIn("line 1", errors[0])
             self.assertIn("topic", errors[0])
 
+    def test_load_reports_non_string_automatic_signals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            root.mkdir()
+            record = valid_observation()
+            record["source"] = "automatic"
+            record["signals"] = ["explicit_confusion", []]
+            (root / "observations.jsonl").write_text(
+                json.dumps(record) + "\n", encoding="utf-8"
+            )
+            records, errors = store.load_observations(root)
+            self.assertEqual(records, [])
+            self.assertIn("signals must contain only strings", errors[0])
+
     def test_scrub_excerpt_redacts_before_truncating(self):
         text = "Authorization: Bearer secret-token " + ("x" * 400)
         scrubbed = store.scrub_excerpt(text)
@@ -324,6 +353,45 @@ class ObservationPersistenceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "confusion"):
                 store.append_observation(oversized, root)
 
+    def test_append_rejects_dangling_symlink_without_creating_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            root.mkdir()
+            profile_path = root / "profile.md"
+            observations_path = root / "observations.jsonl"
+            observations_path.symlink_to(profile_path.name)
+            with self.assertRaisesRegex(OSError, "regular file"):
+                store.append_observation(valid_observation(), root)
+            self.assertTrue(observations_path.is_symlink())
+            self.assertFalse(profile_path.exists())
+
+    def test_load_rejects_symlink_instead_of_reading_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            root.mkdir()
+            target = Path(directory) / "outside.jsonl"
+            target.write_text(
+                json.dumps(valid_observation()) + "\n", encoding="utf-8"
+            )
+            (root / "observations.jsonl").symlink_to(target)
+            records, errors = store.load_observations(root)
+            self.assertEqual(records, [])
+            self.assertIn("regular file", errors[0])
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permission modes required")
+    def test_new_store_and_observation_file_are_user_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "profile"
+            previous_umask = os.umask(0)
+            try:
+                store.append_observation(valid_observation(), root)
+            finally:
+                os.umask(previous_umask)
+            self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
+            self.assertEqual(
+                stat.S_IMODE((root / "observations.jsonl").stat().st_mode), 0o600
+            )
+
     def test_lock_contention_leaves_file_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -331,6 +399,73 @@ class ObservationPersistenceTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError, "lock"):
                 store.append_observation(valid_observation(), root)
             self.assertFalse((root / "observations.jsonl").exists())
+
+    def test_lock_owner_does_not_remove_replacement_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path = root / ".observations.lock"
+            with store._observation_lock(root):
+                lock_path.unlink()
+                lock_path.write_text("replacement", encoding="utf-8")
+            self.assertEqual(lock_path.read_text(encoding="utf-8"), "replacement")
+
+    def test_missing_owned_lock_does_not_mask_successful_work(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lock_path = root / ".observations.lock"
+            with store._observation_lock(root):
+                lock_path.unlink()
+            self.assertFalse(lock_path.exists())
+
+    def test_lock_acquisition_failure_removes_owned_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(
+                store.os, "fsync", side_effect=OSError("forced fsync failure")
+            ):
+                with self.assertRaisesRegex(OSError, "forced fsync failure"):
+                    with store._observation_lock(root):
+                        self.fail("lock acquisition should not complete")
+            self.assertFalse((root / ".observations.lock").exists())
+
+    def test_partial_lock_token_writes_are_completed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original_write = store.os.write
+
+            def write_one_byte(descriptor, payload):
+                return original_write(descriptor, payload[:1])
+
+            with mock.patch.object(store.os, "write", side_effect=write_one_byte):
+                with store._observation_lock(root):
+                    self.assertTrue((root / ".observations.lock").is_file())
+            self.assertFalse((root / ".observations.lock").exists())
+
+    def test_append_rejects_history_replacement_after_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store.append_observation(valid_observation(), root)
+            second = valid_observation()
+            second["id"] = "c" * 64
+            observations_path = root / "observations.jsonl"
+            replacement_path = root / "replacement.jsonl"
+            original_loads = store.json.loads
+            replaced = False
+
+            def replace_after_validation(payload):
+                nonlocal replaced
+                record = original_loads(payload)
+                if not replaced:
+                    replacement_path.write_text("", encoding="utf-8")
+                    os.replace(replacement_path, observations_path)
+                    replaced = True
+                return record
+
+            with mock.patch.object(
+                store.json, "loads", side_effect=replace_after_validation
+            ):
+                with self.assertRaisesRegex(OSError, "changed"):
+                    store.append_observation(second, root)
 
     def test_raw_session_identifier_is_absent_from_persisted_text(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -382,6 +517,30 @@ class ObservationPersistenceTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(stdout.getvalue().strip(), "Observation already exists.")
 
+    def test_python_interpreter_cli_command_appends_to_exact_store_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "approved-observation.json"
+            root = Path(directory) / "resolved store"
+            source.write_text(json.dumps(valid_observation()), encoding="utf-8")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(PLUGIN_ROOT / "scripts/comprehension_store.py"),
+                    "append-observation",
+                    "--input",
+                    str(source),
+                    "--store-root",
+                    str(root),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(completed.stdout.strip(), "Observation appended.")
+            self.assertTrue((root / "observations.jsonl").is_file())
+            self.assertFalse((root / "profile.md").exists())
+
     def test_cli_validate_reports_success_and_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "observation.json"
@@ -398,6 +557,19 @@ class ObservationPersistenceTests(unittest.TestCase):
                 code = store.main(["validate-observation", "--input", str(source)])
             self.assertEqual(code, 1)
             self.assertTrue(stderr.getvalue().strip())
+
+    def test_cli_reports_non_string_automatic_signals_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "observation.json"
+            record = valid_observation()
+            record["source"] = "automatic"
+            record["signals"] = ["explicit_confusion", {}]
+            source.write_text(json.dumps(record), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                code = store.main(["validate-observation", "--input", str(source)])
+            self.assertEqual(code, 1)
+            self.assertIn("signals must contain only strings", stderr.getvalue())
 
 
 if __name__ == "__main__":

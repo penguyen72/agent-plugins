@@ -42,6 +42,10 @@ contract:
 - Retain only minimal role-labeled `evidence` excerpts needed to show the
   transition. Remove unrelated or sensitive content. Never retain a full
   transcript, tool data, hidden reasoning, or repository content.
+- Pass every evidence excerpt through `scrub_excerpt` before previewing it. Then
+  run `validate_observation` against the complete in-memory draft. Stop without
+  a write and report the validation errors if any remain. The validated,
+  scrubbed result is the canonical observation.
 
 The candidate rule stays inside the observation. Do not summarize historical
 observations or promote it directly into a profile rule.
@@ -49,23 +53,22 @@ observations or promote it directly into a profile rule.
 ## Preview and approve
 
 Resolve the store path once with `resolve_store_root`. Show the resolved path and
-the exact observation as a complete JSON object. Ask for explicit approval to
-append that exact preview.
+the canonical observation as a complete JSON object. Label it as the exact observation
+to persist, then ask for explicit approval to append that exact preview.
 
 Any correction invalidates prior approval. Apply the correction, recompute the
-stable ID when its inputs changed, show a new exact preview and store path, and
-obtain explicit approval again. Do not create the store or any temporary input
-file before approval.
+stable ID when its inputs changed, scrub and validate again, show a new exact
+preview and store path, and obtain explicit approval again. Do not create the
+store or any temporary input file before approval.
 
 ## Append the approved observation
 
 After approval only:
 
-1. Serialize the approved object to one securely created temporary UTF-8 JSON
-   file.
-2. Run the plugin-root script as
-   `comprehension_store.py append-observation --input TEMP_PATH`. Normal calls
-   rely on the shared store resolution order.
+1. Serialize the approved canonical observation, unchanged, to one securely
+   created temporary UTF-8 JSON file.
+2. Run the plugin-root script through the interpreter with the same resolved store path:
+   `python3 "$PLUGIN_ROOT/scripts/comprehension_store.py" append-observation --input "$TEMP_PATH" --store-root "$RESOLVED_STORE_ROOT"`.
 3. Remove only that temporary file, including after an append failure. Never
    remove or rewrite store content.
 4. Report whether the observation was appended, already existed, or failed. For
