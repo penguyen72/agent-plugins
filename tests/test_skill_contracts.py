@@ -72,3 +72,48 @@ class CreatePullRequestSkillContractTests(unittest.TestCase):
             body,
         )
         self.assertIn("Never rewrite history, even if separately requested.", body)
+
+
+class CaptureLearningPatternSkillContractTests(unittest.TestCase):
+    def setUp(self):
+        self.path = (
+            Path(__file__).resolve().parents[1]
+            / "plugins/comprehension-profile/skills/capture-learning-pattern/SKILL.md"
+        )
+        self.frontmatter, self.body = load_skill(self.path)
+
+    def test_frontmatter_targets_explicit_learning_moments(self):
+        self.assertEqual(self.frontmatter["name"], "capture-learning-pattern")
+        self.assertIn("click", self.frontmatter["description"].lower())
+
+    def test_skill_extracts_complete_observation(self):
+        for phrase in (
+            "confusion",
+            "clarification questions",
+            "successful explanation",
+            "why it worked",
+            "candidate_rule",
+            "evidence",
+        ):
+            self.assertIn(phrase, self.body.lower())
+
+    def test_skill_previews_and_requires_approval_before_append(self):
+        self.assertIn("exact observation", self.body.lower())
+        self.assertIn("explicit approval", self.body.lower())
+        self.assertIn("append-observation", self.body)
+
+    def test_skill_canonicalizes_preview_and_reuses_the_approved_path(self):
+        self.assertIn("scrub_excerpt", self.body)
+        self.assertIn("validate_observation", self.body)
+        self.assertIn("canonical observation", self.body.lower())
+        self.assertIn("same resolved store path", self.body.lower())
+        self.assertIn("python3", self.body)
+        self.assertIn("--store-root", self.body)
+
+    def test_skill_never_reads_or_writes_profile(self):
+        self.assertIn("must not read or modify `profile.md`", self.body.lower())
+        self.assertNotIn("write-profile", self.body)
+
+    def test_skill_uses_shared_contract(self):
+        self.assertIn("references/data-contracts.md", self.body)
+        self.assertIn("one observation", self.body.lower())

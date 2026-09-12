@@ -62,6 +62,22 @@ class ValidateRepositoryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.assertEqual(validate_repository(root), [])
 
+    def test_checked_in_comprehension_plugin_is_cross_platform_and_self_contained(self):
+        root = Path(__file__).resolve().parents[1]
+        plugin = root / "plugins/comprehension-profile"
+        codex = json.loads(
+            (plugin / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
+        )
+        claude = json.loads(
+            (plugin / ".claude-plugin/plugin.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(codex["name"], "comprehension-profile")
+        self.assertEqual(claude["name"], "comprehension-profile")
+        self.assertEqual(codex["version"], "0.1.0")
+        self.assertEqual(codex["version"], claude["version"])
+        self.assertTrue((plugin / "references/data-contracts.md").is_file())
+        self.assertTrue((plugin / "scripts/comprehension_store.py").is_file())
+
     def test_readme_uses_portable_codex_validator_path(self):
         root = Path(__file__).resolve().parents[1]
         readme = (root / "README.md").read_text(encoding="utf-8")

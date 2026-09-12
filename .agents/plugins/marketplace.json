@@ -15,6 +15,13 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "comprehension-profile",
+      "source": {
+        "source": "local",
+        "path": "./plugins/comprehension-profile"
+      }
     }
   ]
 }
